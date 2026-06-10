@@ -6,6 +6,9 @@ if (!playerName || playerName.trim() === "") {
     playerName = "Player";
 }
 
+// =====================
+// UI ELEMENTS
+// =====================
 const usernameEl = document.getElementById("username");
 const statusEl = document.getElementById("status");
 
@@ -13,46 +16,42 @@ if (usernameEl) {
     usernameEl.innerText = "Player: " + playerName;
 }
 
-// Create map
+// =====================
+// SCORE STATE
+// =====================
+let scores = {
+    red: 0,
+    blue: 0
+};
+
+// =====================
+// MAP INIT
+// =====================
 const map = L.map("map").setView(
     [40.121846, -75.122539],
     14
 );
 
-L.tileLayer(
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-        attribution: "&copy; OpenStreetMap"
-    }
-).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap"
+}).addTo(map);
 
-// Color system
-function getColor(name) {
-    const colors = [
-        "red",
-        "blue",
-        "green",
-        "purple",
-        "orange",
-        "pink",
-        "cyan",
-        "yellow"
-    ];
-
-    let value = 0;
-
-    for (let i = 0; i < name.length; i++) {
-        value += name.charCodeAt(i);
-    }
-
-    return colors[value % colors.length];
+// =====================
+// TEAM COLOR SYSTEM
+// =====================
+function getColor(team) {
+    if (team === "red") return "red";
+    if (team === "blue") return "blue";
+    return "gray";
 }
 
-// Draw territory safely
+// =====================
+// DRAW TERRITORY
+// =====================
 function drawTerritory(data) {
     if (!data || !data.lat || !data.lng) return;
 
-    const color = getColor(data.owner || "unknown");
+    const color = getColor(data.team);
 
     L.circle([data.lat, data.lng], {
         radius: data.radius || 150,
@@ -64,34 +63,49 @@ function drawTerritory(data) {
     .bindPopup(data.owner || "Unknown");
 }
 
-// Load existing territories
+// =====================
+// LOAD EXISTING WORLD
+// =====================
 socket.on("loadTerritories", (territories) => {
     if (!Array.isArray(territories)) return;
-
     territories.forEach(drawTerritory);
 });
 
-// New territory from server
+// =====================
+// NEW TERRITORY UPDATE
+// =====================
 socket.on("newTerritory", (territory) => {
     drawTerritory(territory);
 });
 
-// Error messages
-socket.on("errorMessage", (message) => {
+// =====================
+// SCORE UPDATE (LIVE UI)
+// =====================
+socket.on("scoreUpdate", (data) => {
+    scores = data;
+
     if (statusEl) {
-        statusEl.innerText = message;
+        statusEl.innerHTML =
+            `🔴 Red: ${scores.red} | 🔵 Blue: ${scores.blue}`;
     }
 });
 
-// Click to claim land
+// =====================
+// CLICK COOLDOWN (ANTI-SPAM)
+// =====================
 let lastClick = 0;
 
+// =====================
+// CLAIM LAND
+// =====================
 map.on("click", (event) => {
 
     const now = Date.now();
 
     if (now - lastClick < 2000) {
-        statusEl.innerText = "Wait before claiming again!";
+        if (statusEl) {
+            statusEl.innerText = "Wait before claiming again!";
+        }
         return;
     }
 
