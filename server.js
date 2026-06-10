@@ -7,120 +7,105 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const FILE = "territories.txt";
-
 app.use(express.static("public"));
 
+const PORT = process.env.PORT || 3000;
+
+// ===== GAME STATE =====
+let territories = [];
+const playerTeams = {};
+
+// ===== LOAD SAVED DATA =====
+const FILE = "territories.txt";
+
 function loadTerritories() {
+    if (!fs.existsSync(FILE)) return;
 
-    if (!fs.existsSync(FILE)) {
-        return [];
-    }
+    const data = fs.readFileSync(FILE, "utf8").trim();
+    if (!data) return;
 
-    const lines =
-        fs.readFileSync(FILE, "utf8")
-        .split("\n")
-        .filter(line => line.trim());
-
-    const territories = [];
-
-    for (const line of lines) {
-
+    territories = data.split("\n").map(line => {
         const parts = line.split("|");
-
-        territories.push({
+        return {
             owner: parts[0],
-            lat: Number(parts[1]),
-            lng: Number(parts[2]),
-            radius: Number(parts[3])
-        });
-
-    }
-
-    return territories;
+            team: parts[1],
+            lat: parseFloat(parts[2]),
+            lng: parseFloat(parts[3]),
+            radius: parseFloat(parts[4])
+        };
+    });
 }
 
-function saveTerritory(owner, lat, lng) {
+function saveTerritories() {
+    const data = territories.map(t =>
+        `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
+    ).join("\n");
 
-    fs.appendFileSync(
-        FILE,
-        `${owner}|${lat}|${lng}|150\n`
-    );
+    fs.writeFileSync(FILE, data, "utf8");
 }
 
-io.on("connection", socket => {
+loadTerritories();
 
-    socket.emit(
-        "loadTerritories",
-        loadTerritories()
-    );
+// ===== SOCKET CONNECTION =====
+io.on("connection", (socket) => {
+
+    // send existing world
+    socket.emit("loadTerritories", territories);
 
     socket.on("claim", (data) => {
 
-    const radius = 0.01; // “capture range” in map degrees
-
-    let captured = false;
-
-    // check if near existing territory
-    for (let t of territories) {
-
-        const dist =
-            Math.sqrt(
-                Math.pow(t.lat - data.lat, 2) +
-                Math.pow(t.lng - data.lng, 2)
-            );
-
-        if (dist < radius) {
-
-            // CAPTURE IT
-            t.owner = data.owner;
-            captured = true;
-
-            io.emit("newTerritory", t);
-            saveTerritories();
-
-            return;
+        // assign team if new player
+        if (!playerTeams[data.owner]) {
+            playerTeams[data.owner] =
+                Math.random() < 0.5 ? "red" : "blue";
         }
-    }
 
-    // otherwise create new territory
-    const newTerritory = {
-        owner: data.owner,
-        lat: data.lat,
-        lng: data.lng,
-        radius: 150
-    };
+        const team = playerTeams[data.owner];
 
-    territories.push(newTerritory);
+        const captureRadius = 0.01;
 
-    io.emit("newTerritory", newTerritory);
-    saveTerritories();
-});
+        let captured = false;
 
-        saveTerritory(
-            data.owner,
-            data.lat,
-            data.lng
-        );
+        // check for nearby territory
+        for (let t of territories) {
 
-        io.emit(
-            "newTerritory",
-            {
-                owner: data.owner,
-                lat: data.lat,
-                lng: data.lng,
-                radius: 150
+            const dist =
+                Math.sqrt(
+                    Math.pow(t.lat - data.lat, 2) +
+                    Math.pow(t.lng - data.lng, 2)
+                );
+
+            if (dist < captureRadius) {
+
+                // CAPTURE
+                t.owner = data.owner;
+                t.team = team;
+
+                io.emit("newTerritory", t);
+                saveTerritories();
+
+                captured = true;
+                return;
             }
-        );
+        }
 
+        // create new territory
+        const newTerritory = {
+            owner: data.owner,
+            team: team,
+            lat: data.lat,
+            lng: data.lng,
+            radius: 150
+        };
+
+        territories.push(newTerritory);
+
+        io.emit("newTerritory", newTerritory);
+        saveTerritories();
     });
-
 });
 
-server.listen(3000, () => {
-
-    console.log(
-        "Game running at http://localhost:3000"
-    );
-
+// ===== START SERVER =====
+server.listen(PORT, () => {
+    console.log("Server running on port " + PORT);
 });
