@@ -1,13 +1,19 @@
 const socket = io();
 
-const playerName =
-    prompt("Enter your username");
+let playerName = prompt("Enter your username");
 
-document.getElementById(
-    "username"
-).innerText =
-    "Player: " + playerName;
+if (!playerName || playerName.trim() === "") {
+    playerName = "Player";
+}
 
+const usernameEl = document.getElementById("username");
+const statusEl = document.getElementById("status");
+
+if (usernameEl) {
+    usernameEl.innerText = "Player: " + playerName;
+}
+
+// Create map
 const map = L.map("map").setView(
     [40.121846, -75.122539],
     14
@@ -16,15 +22,13 @@ const map = L.map("map").setView(
 L.tileLayer(
     "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
-        attribution:
-        "&copy; OpenStreetMap"
+        attribution: "&copy; OpenStreetMap"
     }
 ).addTo(map);
 
+// Color system
 function getColor(name) {
-
     const colors = [
-
         "red",
         "blue",
         "green",
@@ -33,113 +37,57 @@ function getColor(name) {
         "pink",
         "cyan",
         "yellow"
-
     ];
 
     let value = 0;
 
-    for (
-        let i = 0;
-        i < name.length;
-        i++
-    ) {
-
-        value +=
-            name.charCodeAt(i);
-
+    for (let i = 0; i < name.length; i++) {
+        value += name.charCodeAt(i);
     }
 
-    return colors[
-        value % colors.length
-    ];
+    return colors[value % colors.length];
 }
 
+// Draw territory safely
 function drawTerritory(data) {
+    if (!data || !data.lat || !data.lng) return;
 
-    const color =
-        getColor(data.owner);
+    const color = getColor(data.owner || "unknown");
 
-    L.circle(
-        [data.lat, data.lng],
-        {
-            radius:
-                data.radius,
-
-            color:
-                color,
-
-            fillColor:
-                color,
-
-            fillOpacity:
-                0.4
-        }
-    )
+    L.circle([data.lat, data.lng], {
+        radius: data.radius || 150,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.4
+    })
     .addTo(map)
-    .bindPopup(
-        data.owner
-    );
+    .bindPopup(data.owner || "Unknown");
 }
 
-socket.on(
-    "loadTerritories",
-    territories => {
+// Load existing territories
+socket.on("loadTerritories", (territories) => {
+    if (!Array.isArray(territories)) return;
 
-        for (
-            const territory
-            of territories
-        ) {
+    territories.forEach(drawTerritory);
+});
 
-            drawTerritory(
-                territory
-            );
-        }
+// New territory from server
+socket.on("newTerritory", (territory) => {
+    drawTerritory(territory);
+});
 
+// Error messages
+socket.on("errorMessage", (message) => {
+    if (statusEl) {
+        statusEl.innerText = message;
     }
-);
+});
 
-socket.on(
-    "newTerritory",
-    territory => {
-
-        drawTerritory(
-            territory
-        );
-
-    }
-);
-
-socket.on(
-    "errorMessage",
-    message => {
-
-        document.getElementById(
-            "status"
-        ).innerText =
-            message;
-
-    }
-);
-
-map.on(
-    "click",
-    event => {
-
-        socket.emit(
-            "claim",
-            {
-
-                owner:
-                    playerName,
-
-                lat:
-                    event.latlng.lat,
-
-                lng:
-                    event.latlng.lng
-
-            }
-        );
-
-    }
-);
+// Click to claim land
+map.on("click", (event) => {
+    socket.emit("claim", {
+        owner: playerName,
+        lat: event.latlng.lat,
+        lng: event.latlng.lng
+    });
+});
