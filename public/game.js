@@ -1,16 +1,12 @@
 const socket = io();
 
 // =====================
-// PLAYER
-// =====================
 let playerName = prompt("Enter your username");
 
 if (!playerName || playerName.trim() === "") {
     playerName = "Player";
 }
 
-// =====================
-// UI ELEMENTS
 // =====================
 const usernameEl = document.getElementById("username");
 const statusEl = document.getElementById("status");
@@ -20,15 +16,11 @@ if (usernameEl) {
 }
 
 // =====================
-// SCORE STATE
-// =====================
 let scores = {
     red: 0,
     blue: 0
 };
 
-// =====================
-// MAP SETUP
 // =====================
 const map = L.map("map").setView(
     [40.121846, -75.122539],
@@ -40,16 +32,12 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // =====================
-// TEAM COLORS
-// =====================
 function getColor(team) {
     if (team === "red") return "red";
     if (team === "blue") return "blue";
     return "gray";
 }
 
-// =====================
-// DRAW TERRITORY
 // =====================
 function drawTerritory(data) {
     if (!data || !data.lat || !data.lng) return;
@@ -67,37 +55,35 @@ function drawTerritory(data) {
 }
 
 // =====================
-// LOAD WORLD
-// =====================
-socket.on("loadTerritories", (territories) => {
-    if (!Array.isArray(territories)) return;
-    territories.forEach(drawTerritory);
+socket.on("loadTerritories", (t) => {
+    if (!Array.isArray(t)) return;
+    t.forEach(drawTerritory);
 });
 
-// =====================
-// NEW TERRITORY
-// =====================
-socket.on("newTerritory", (territory) => {
-    drawTerritory(territory);
-});
+socket.on("newTerritory", drawTerritory);
 
 // =====================
-// SCORE UPDATE
+// SCORE + TIMER UI
 // =====================
 socket.on("scoreUpdate", (data) => {
     scores = data;
+});
+
+socket.on("timerUpdate", (time) => {
+
+    const m = Math.floor(time / 60);
+    const s = time % 60;
+
+    const formatted = `${m}:${s.toString().padStart(2, "0")}`;
 
     if (statusEl) {
         statusEl.innerHTML =
-            `🔴 Red: ${scores.red} | 🔵 Blue: ${scores.blue}`;
+            `⏳ ${formatted} | 🔴 ${scores.red} | 🔵 ${scores.blue}`;
     }
 });
 
 // =====================
-// MATCH END
-// =====================
 socket.on("matchEnd", (data) => {
-
     if (statusEl) {
         statusEl.innerHTML =
             `🏆 ${data.winner.toUpperCase()} WINS!`;
@@ -105,25 +91,19 @@ socket.on("matchEnd", (data) => {
 });
 
 // =====================
-// MATCH RESET
-// =====================
 socket.on("resetMatch", () => {
     location.reload();
 });
 
 // =====================
-// CLICK COOLDOWN
-// =====================
 let lastClick = 0;
 
-// =====================
-// CLAIM LAND
 // =====================
 map.on("click", (event) => {
 
     const now = Date.now();
 
-    if (now - lastClick < 100) {
+    if (now - lastClick < 2000) {
         if (statusEl) {
             statusEl.innerText = "Wait before claiming again!";
         }
