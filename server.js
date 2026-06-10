@@ -7,22 +7,27 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+app.use(express.static("public"));
+
+const PORT = process.env.PORT || 3000;
+
+const FILE = "territories.txt";
+
+// =====================
+// GAME STATE
+// =====================
+let territories = [];
+
+const playerTeams = {};
+
 let scores = {
     red: 0,
     blue: 0
 };
 
-app.use(express.static("public"));
-
-const PORT = process.env.PORT || 3000;
-
-// ===== GAME STATE =====
-let territories = [];
-const playerTeams = {};
-
-// ===== LOAD SAVED DATA =====
-const FILE = "territories.txt";
-
+// =====================
+// LOAD SAVED DATA
+// =====================
 function loadTerritories() {
     if (!fs.existsSync(FILE)) return;
 
@@ -41,6 +46,20 @@ function loadTerritories() {
     });
 }
 
+// =====================
+// SAVE DATA (TEXT FILE)
+// =====================
+function saveTerritories() {
+    const data = territories.map(t =>
+        `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
+    ).join("\n");
+
+    fs.writeFileSync(FILE, data, "utf8");
+}
+
+// =====================
+// SCORE SYSTEM
+// =====================
 function updateScores() {
 
     scores.red = 0;
@@ -54,21 +73,18 @@ function updateScores() {
     io.emit("scoreUpdate", scores);
 }
 
-function saveTerritories() {
-    const data = territories.map(t =>
-        `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
-    ).join("\n");
-
-    fs.writeFileSync(FILE, data, "utf8");
-}
-
+// =====================
+// INIT
+// =====================
 loadTerritories();
 
-// ===== SOCKET CONNECTION =====
+// =====================
+// SOCKET.IO
+// =====================
 io.on("connection", (socket) => {
 
-    // send existing world
     socket.emit("loadTerritories", territories);
+    socket.emit("scoreUpdate", scores);
 
     socket.on("claim", (data) => {
 
@@ -82,9 +98,9 @@ io.on("connection", (socket) => {
 
         const captureRadius = 0.01;
 
-        let captured = false;
-
-        // check for nearby territory
+        // =====================
+        // CAPTURE LOGIC
+        // =====================
         for (let t of territories) {
 
             const dist =
@@ -95,19 +111,21 @@ io.on("connection", (socket) => {
 
             if (dist < captureRadius) {
 
-                // CAPTURE
                 t.owner = data.owner;
                 t.team = team;
 
                 io.emit("newTerritory", t);
-                saveTerritories();
 
-                captured = true;
+                saveTerritories();
+                updateScores();
+
                 return;
             }
         }
 
-        // create new territory
+        // =====================
+        // NEW TERRITORY
+        // =====================
         const newTerritory = {
             owner: data.owner,
             team: team,
@@ -119,11 +137,15 @@ io.on("connection", (socket) => {
         territories.push(newTerritory);
 
         io.emit("newTerritory", newTerritory);
+
         saveTerritories();
+        updateScores();
     });
 });
 
-// ===== START SERVER =====
+// =====================
+// START SERVER
+// =====================
 server.listen(PORT, () => {
     console.log("Server running on port " + PORT);
 });
