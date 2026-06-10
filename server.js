@@ -41,6 +41,19 @@ function loadTerritories() {
     });
 }
 
+function updateScores() {
+
+    scores.red = 0;
+    scores.blue = 0;
+
+    for (let t of territories) {
+        if (t.team === "red") scores.red++;
+        if (t.team === "blue") scores.blue++;
+    }
+
+    io.emit("scoreUpdate", scores);
+}
+
 function saveTerritories() {
     const data = territories.map(t =>
         `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
