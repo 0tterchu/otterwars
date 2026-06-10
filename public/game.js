@@ -1,5 +1,8 @@
 const socket = io();
 
+// =====================
+// PLAYER
+// =====================
 let playerName = prompt("Enter your username");
 
 if (!playerName || playerName.trim() === "") {
@@ -25,7 +28,7 @@ let scores = {
 };
 
 // =====================
-// MAP INIT
+// MAP SETUP
 // =====================
 const map = L.map("map").setView(
     [40.121846, -75.122539],
@@ -37,7 +40,7 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // =====================
-// TEAM COLOR SYSTEM
+// TEAM COLORS
 // =====================
 function getColor(team) {
     if (team === "red") return "red";
@@ -60,11 +63,11 @@ function drawTerritory(data) {
         fillOpacity: 0.4
     })
     .addTo(map)
-    .bindPopup(data.owner || "Unknown");
+    .bindPopup(`${data.owner} (${data.team})`);
 }
 
 // =====================
-// LOAD EXISTING WORLD
+// LOAD WORLD
 // =====================
 socket.on("loadTerritories", (territories) => {
     if (!Array.isArray(territories)) return;
@@ -72,14 +75,14 @@ socket.on("loadTerritories", (territories) => {
 });
 
 // =====================
-// NEW TERRITORY UPDATE
+// NEW TERRITORY
 // =====================
 socket.on("newTerritory", (territory) => {
     drawTerritory(territory);
 });
 
 // =====================
-// SCORE UPDATE (LIVE UI)
+// SCORE UPDATE
 // =====================
 socket.on("scoreUpdate", (data) => {
     scores = data;
@@ -91,7 +94,25 @@ socket.on("scoreUpdate", (data) => {
 });
 
 // =====================
-// CLICK COOLDOWN (ANTI-SPAM)
+// MATCH END
+// =====================
+socket.on("matchEnd", (data) => {
+
+    if (statusEl) {
+        statusEl.innerHTML =
+            `🏆 ${data.winner.toUpperCase()} WINS!`;
+    }
+});
+
+// =====================
+// MATCH RESET
+// =====================
+socket.on("resetMatch", () => {
+    location.reload();
+});
+
+// =====================
+// CLICK COOLDOWN
 // =====================
 let lastClick = 0;
 
