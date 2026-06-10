@@ -55,35 +55,47 @@ io.on("connection", socket => {
         loadTerritories()
     );
 
-    socket.on("claim", data => {
+    socket.on("claim", (data) => {
 
-        const territories =
-            loadTerritories();
+    const radius = 0.01; // “capture range” in map degrees
 
-        for (const territory of territories) {
+    let captured = false;
 
-            const dx =
-                territory.lat - data.lat;
+    // check if near existing territory
+    for (let t of territories) {
 
-            const dy =
-                territory.lng - data.lng;
+        const dist =
+            Math.sqrt(
+                Math.pow(t.lat - data.lat, 2) +
+                Math.pow(t.lng - data.lng, 2)
+            );
 
-            const distance =
-                Math.sqrt(
-                    dx * dx +
-                    dy * dy
-                );
+        if (dist < radius) {
 
-            if (distance < 0.001) {
+            // CAPTURE IT
+            t.owner = data.owner;
+            captured = true;
 
-                socket.emit(
-                    "errorMessage",
-                    "Too close to another territory."
-                );
+            io.emit("newTerritory", t);
+            saveTerritories();
 
-                return;
-            }
+            return;
         }
+    }
+
+    // otherwise create new territory
+    const newTerritory = {
+        owner: data.owner,
+        lat: data.lat,
+        lng: data.lng,
+        radius: 150
+    };
+
+    territories.push(newTerritory);
+
+    io.emit("newTerritory", newTerritory);
+    saveTerritories();
+});
 
         saveTerritory(
             data.owner,
