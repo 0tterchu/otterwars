@@ -25,8 +25,11 @@ let scores = {
     blue: 0
 };
 
+let matchActive = true;
+let matchWinner = null;
+
 // =====================
-// LOAD SAVED DATA
+// LOAD SAVE FILE
 // =====================
 function loadTerritories() {
     if (!fs.existsSync(FILE)) return;
@@ -47,7 +50,7 @@ function loadTerritories() {
 }
 
 // =====================
-// SAVE DATA (TEXT FILE)
+// SAVE FILE
 // =====================
 function saveTerritories() {
     const data = territories.map(t =>
@@ -71,6 +74,59 @@ function updateScores() {
     }
 
     io.emit("scoreUpdate", scores);
+
+    checkWinCondition();
+}
+
+// =====================
+// WIN CONDITION
+// =====================
+function checkWinCondition() {
+
+    if (!matchActive) return;
+
+    const total = territories.length;
+    if (total === 0) return;
+
+    const redPct = scores.red / total;
+    const bluePct = scores.blue / total;
+
+    if (redPct >= 0.6) endMatch("red");
+    if (bluePct >= 0.6) endMatch("blue");
+}
+
+// =====================
+// END MATCH
+// =====================
+function endMatch(winner) {
+
+    if (!matchActive) return;
+
+    matchActive = false;
+    matchWinner = winner;
+
+    io.emit("matchEnd", { winner });
+
+    console.log("Winner:", winner);
+
+    setTimeout(resetMatch, 10000);
+}
+
+// =====================
+// RESET MATCH
+// =====================
+function resetMatch() {
+
+    territories = [];
+    scores = { red: 0, blue: 0 };
+    matchActive = true;
+    matchWinner = null;
+
+    saveTerritories();
+
+    io.emit("resetMatch");
+
+    console.log("Match restarted");
 }
 
 // =====================
@@ -88,7 +144,9 @@ io.on("connection", (socket) => {
 
     socket.on("claim", (data) => {
 
-        // assign team if new player
+        if (!matchActive) return;
+
+        // assign team
         if (!playerTeams[data.owner]) {
             playerTeams[data.owner] =
                 Math.random() < 0.5 ? "red" : "blue";
