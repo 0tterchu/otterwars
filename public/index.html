@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OtterWars Territory Game</title>
+
+    <!-- Leaflet map CSS -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    />
+
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- Info panel -->
+<div id="panel">
+    <h2>OtterWars</h2>
+    <div id="username"></div>
+    <div id="status">Click the map to claim land</div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Socket.IO (must be BEFORE game.js) -->
+<script src="/socket.io/socket.io.js"></script>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<!-- Your game code -->
+<script src="game.js"></script>
+
+</body>
+
+</html>
