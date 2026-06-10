@@ -84,7 +84,19 @@ socket.on("errorMessage", (message) => {
 });
 
 // Click to claim land
+let lastClick = 0;
+
 map.on("click", (event) => {
+
+    const now = Date.now();
+
+    if (now - lastClick < 2000) {
+        statusEl.innerText = "Wait before claiming again!";
+        return;
+    }
+
+    lastClick = now;
+
     socket.emit("claim", {
         owner: playerName,
         lat: event.latlng.lat,
