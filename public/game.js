@@ -123,7 +123,7 @@ map.on("click", (event) => {
 
     const now = Date.now();
 
-    if (now - lastClick < 2000) {
+    if (now - lastClick < 100) {
         if (statusEl) {
             statusEl.innerText = "Wait before claiming again!";
         }
