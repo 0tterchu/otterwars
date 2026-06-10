@@ -26,10 +26,13 @@ let scores = {
 };
 
 let matchActive = true;
-let matchWinner = null;
+
+// TIMER
+let timeLeft = 300;
+let timerInterval = null;
 
 // =====================
-// LOAD SAVE FILE
+// LOAD / SAVE
 // =====================
 function loadTerritories() {
     if (!fs.existsSync(FILE)) return;
@@ -49,9 +52,6 @@ function loadTerritories() {
     });
 }
 
-// =====================
-// SAVE FILE
-// =====================
 function saveTerritories() {
     const data = territories.map(t =>
         `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
@@ -74,73 +74,92 @@ function updateScores() {
     }
 
     io.emit("scoreUpdate", scores);
-
-    checkWinCondition();
 }
 
 // =====================
-// WIN CONDITION
+// TIMER SYSTEM
 // =====================
-function checkWinCondition() {
+function startTimer() {
 
-    if (!matchActive) return;
+    if (timerInterval) return;
 
-    const total = territories.length;
+    timerInterval = setInterval(() => {
+
+        if (!matchActive) return;
+
+        timeLeft--;
+
+        io.emit("timerUpdate", timeLeft);
+
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            endMatchByTime();
+        }
+
+    }, 1000);
+}
+
+function endMatchByTime() {
+
+    const total = scores.red + scores.blue;
     if (total === 0) return;
+
+    let winner = "tie";
 
     const redPct = scores.red / total;
     const bluePct = scores.blue / total;
 
-    if (redPct >= 0.6) endMatch("red");
-    if (bluePct >= 0.6) endMatch("blue");
+    if (redPct > bluePct) winner = "red";
+    if (bluePct > redPct) winner = "blue";
+
+    endMatch(winner);
 }
 
 // =====================
-// END MATCH
+// MATCH SYSTEM
 // =====================
 function endMatch(winner) {
 
     if (!matchActive) return;
 
     matchActive = false;
-    matchWinner = winner;
 
     io.emit("matchEnd", { winner });
-
-    console.log("Winner:", winner);
 
     setTimeout(resetMatch, 10000);
 }
 
-// =====================
-// RESET MATCH
-// =====================
 function resetMatch() {
 
     territories = [];
     scores = { red: 0, blue: 0 };
     matchActive = true;
-    matchWinner = null;
+    timeLeft = 300;
 
     saveTerritories();
 
     io.emit("resetMatch");
+    io.emit("timerUpdate", timeLeft);
 
-    console.log("Match restarted");
+    startTimer();
 }
 
 // =====================
 // INIT
 // =====================
 loadTerritories();
+startTimer();
 
 // =====================
-// SOCKET.IO
+// SOCKET
 // =====================
 io.on("connection", (socket) => {
 
     socket.emit("loadTerritories", territories);
     socket.emit("scoreUpdate", scores);
+    socket.emit("timerUpdate", timeLeft);
 
     socket.on("claim", (data) => {
 
@@ -156,9 +175,7 @@ io.on("connection", (socket) => {
 
         const captureRadius = 0.01;
 
-        // =====================
-        // CAPTURE LOGIC
-        // =====================
+        // capture check
         for (let t of territories) {
 
             const dist =
@@ -181,9 +198,7 @@ io.on("connection", (socket) => {
             }
         }
 
-        // =====================
-        // NEW TERRITORY
-        // =====================
+        // new territory
         const newTerritory = {
             owner: data.owner,
             team: team,
@@ -201,8 +216,6 @@ io.on("connection", (socket) => {
     });
 });
 
-// =====================
-// START SERVER
 // =====================
 server.listen(PORT, () => {
     console.log("Server running on port " + PORT);
