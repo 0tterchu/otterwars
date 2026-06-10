@@ -7,6 +7,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+let scores = {
+    red: 0,
+    blue: 0
+};
+
 app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
