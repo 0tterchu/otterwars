@@ -3,38 +3,52 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>OtterWars Territory Game</title>
 
-    <!-- Leaflet map CSS -->
+    <!-- Leaflet -->
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet/dist/leaflet.css"
     />
 
-    <!-- Your CSS -->
+    <!-- Game CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<!-- Info panel -->
-<div id="panel">
-    <h2>OtterWars</h2>
-    <div id="username"></div>
-    <div id="status">Click the map to claim land</div>
-</div>
+    <!-- Top Panel -->
+    <div id="panel">
 
-<!-- Map -->
-<div id="map"></div>
+        <h2>🦦 OtterWars</h2>
 
-<!-- Socket.IO (must be BEFORE game.js) -->
-<script src="/socket.io/socket.io.js"></script>
+        <div id="username">
+            Player
+        </div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <div id="status">
+            Press Claim Territory to capture land
+        </div>
 
-<!-- Your game code -->
-<script src="game.js"></script>
+        <button id="claimBtn">
+            📍 Claim Territory
+        </button>
+
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- Leaflet -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Game -->
+    <script src="game.js"></script>
 
 </body>
 
