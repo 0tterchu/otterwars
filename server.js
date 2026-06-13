@@ -1,4 +1,3 @@
-```js
 const express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -6,7 +5,9 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: { origin: "*" }
+});
 
 app.use(express.static("public"));
 
@@ -17,8 +18,7 @@ const FILE = "territories.txt";
 // GAME STATE
 // =====================
 let territories = [];
-
-const playerTeams = {};
+let playerTeams = {};
 
 let scores = {
     red: 0,
@@ -39,43 +39,35 @@ let timerInterval = null;
 function loadTerritories() {
     if (!fs.existsSync(FILE)) return;
 
-    const data = fs.readFileSync(FILE, "utf8").trim();
+    const raw = fs.readFileSync(FILE, "utf8").trim();
+    if (!raw) return;
 
-    if (!data) return;
-
-    territories = data.split("\n").map(line => {
-        const parts = line.split("|");
-
+    territories = raw.split("\n").map(line => {
+        const [owner, team, lat, lng, radius] = line.split("|");
         return {
-            owner: parts[0],
-            team: parts[1],
-            lat: parseFloat(parts[2]),
-            lng: parseFloat(parts[3]),
-            radius: parseFloat(parts[4])
+            owner,
+            team,
+            lat: parseFloat(lat),
+            lng: parseFloat(lng),
+            radius: parseFloat(radius)
         };
     });
 }
 
 function saveTerritories() {
-    const data = territories.map(t =>
-        `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`
-    ).join("\n");
+    const out = territories
+        .map(t => `${t.owner}|${t.team}|${t.lat}|${t.lng}|${t.radius}`)
+        .join("\n");
 
-    fs.writeFileSync(FILE, data, "utf8");
+    fs.writeFileSync(FILE, out, "utf8");
 }
 
 // =====================
 // SCORE SYSTEM
 // =====================
 function updateScores() {
-
-    scores.red = 0;
-    scores.blue = 0;
-
-    for (const territory of territories) {
-        if (territory.team === "red") scores.red++;
-        if (territory.team === "blue") scores.blue++;
-    }
+    scores.red = territories.filter(t => t.team === "red").length;
+    scores.blue = territories.filter(t => t.team === "blue").length;
 
     io.emit("scoreUpdate", scores);
 }
@@ -84,25 +76,17 @@ function updateScores() {
 // MATCH SYSTEM
 // =====================
 function endMatch(winner) {
-
     if (!matchActive) return;
 
     matchActive = false;
-
     io.emit("matchEnd", { winner });
 
     setTimeout(resetMatch, 10000);
 }
 
 function resetMatch() {
-
     territories = [];
-
-    scores = {
-        red: 0,
-        blue: 0
-    };
-
+    scores = { red: 0, blue: 0 };
     matchActive = true;
     timeLeft = 300;
 
@@ -115,7 +99,6 @@ function resetMatch() {
 }
 
 function endMatchByTime() {
-
     const total = scores.red + scores.blue;
 
     if (total === 0) {
@@ -127,7 +110,6 @@ function endMatchByTime() {
     const bluePct = scores.blue / total;
 
     let winner = "tie";
-
     if (redPct > bluePct) winner = "red";
     if (bluePct > redPct) winner = "blue";
 
@@ -135,28 +117,22 @@ function endMatchByTime() {
 }
 
 // =====================
-// TIMER
+// TIMER LOOP
 // =====================
 function startTimer() {
-
     if (timerInterval) return;
 
     timerInterval = setInterval(() => {
-
         if (!matchActive) return;
 
         timeLeft--;
-
         io.emit("timerUpdate", timeLeft);
 
         if (timeLeft <= 0) {
-
             clearInterval(timerInterval);
             timerInterval = null;
-
             endMatchByTime();
         }
-
     }, 1000);
 }
 
@@ -170,72 +146,55 @@ startTimer();
 // =====================
 // SOCKET.IO
 // =====================
-io.on("connection", (socket) => {
-
+io.on("connection", socket => {
     console.log("Player connected");
 
     socket.emit("loadTerritories", territories);
     socket.emit("scoreUpdate", scores);
     socket.emit("timerUpdate", timeLeft);
 
-    socket.on("claimLocation", (data) => {
-
+    socket.on("claimLocation", data => {
         if (!matchActive) return;
+        if (!data || typeof data.lat !== "number" || typeof data.lng !== "number" || !data.owner) return;
 
-        if (
-            !data ||
-            typeof data.lat !== "number" ||
-            typeof data.lng !== "number" ||
-            !data.owner
-        ) {
-            return;
-        }
-
-        // Assign team if new player
+        // Assign team if new
         if (!playerTeams[data.owner]) {
-            playerTeams[data.owner] =
-                Math.random() < 0.5 ? "red" : "blue";
+            playerTeams[data.owner] = Math.random() < 0.5 ? "red" : "blue";
         }
 
         const team = playerTeams[data.owner];
-
         const captureRadius = 0.01;
 
-        // Capture existing nearby territory
-        for (const territory of territories) {
-
-            const distance = Math.sqrt(
-                Math.pow(territory.lat - data.lat, 2) +
-                Math.pow(territory.lng - data.lng, 2)
+        // Try capturing existing territory
+        for (const t of territories) {
+            const dist = Math.sqrt(
+                (t.lat - data.lat) ** 2 +
+                (t.lng - data.lng) ** 2
             );
 
-            if (distance < captureRadius) {
+            if (dist < captureRadius) {
+                t.owner = data.owner;
+                t.team = team;
 
-                territory.owner = data.owner;
-                territory.team = team;
-
-                io.emit("newTerritory", territory);
-
+                io.emit("newTerritory", t);
                 saveTerritories();
                 updateScores();
-
                 return;
             }
         }
 
         // Create new territory
-        const newTerritory = {
+        const newT = {
             owner: data.owner,
-            team: team,
+            team,
             lat: data.lat,
             lng: data.lng,
             radius: 150
         };
 
-        territories.push(newTerritory);
+        territories.push(newT);
 
-        io.emit("newTerritory", newTerritory);
-
+        io.emit("newTerritory", newT);
         saveTerritories();
         updateScores();
     });
@@ -251,4 +210,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-```
