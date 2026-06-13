@@ -9,7 +9,7 @@ const io = new Server(server, {
     cors: { origin: "*" }
 });
 
-app.use(express.static("public"));
+app.use(express.static(__dirname + "/public"));
 
 const PORT = process.env.PORT || 3000;
 const FILE = "territories.txt";
