@@ -1,3 +1,4 @@
+```js
 const express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -10,7 +11,6 @@ const io = new Server(server);
 app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
-
 const FILE = "territories.txt";
 
 // =====================
@@ -27,7 +27,9 @@ let scores = {
 
 let matchActive = true;
 
+// =====================
 // TIMER
+// =====================
 let timeLeft = 300;
 let timerInterval = null;
 
@@ -38,10 +40,12 @@ function loadTerritories() {
     if (!fs.existsSync(FILE)) return;
 
     const data = fs.readFileSync(FILE, "utf8").trim();
+
     if (!data) return;
 
     territories = data.split("\n").map(line => {
         const parts = line.split("|");
+
         return {
             owner: parts[0],
             team: parts[1],
@@ -68,53 +72,12 @@ function updateScores() {
     scores.red = 0;
     scores.blue = 0;
 
-    for (let t of territories) {
-        if (t.team === "red") scores.red++;
-        if (t.team === "blue") scores.blue++;
+    for (const territory of territories) {
+        if (territory.team === "red") scores.red++;
+        if (territory.team === "blue") scores.blue++;
     }
 
     io.emit("scoreUpdate", scores);
-}
-
-// =====================
-// TIMER SYSTEM
-// =====================
-function startTimer() {
-
-    if (timerInterval) return;
-
-    timerInterval = setInterval(() => {
-
-        if (!matchActive) return;
-
-        timeLeft--;
-
-        io.emit("timerUpdate", timeLeft);
-
-        if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-
-            endMatchByTime();
-        }
-
-    }, 1000);
-}
-
-function endMatchByTime() {
-
-    const total = scores.red + scores.blue;
-    if (total === 0) return;
-
-    let winner = "tie";
-
-    const redPct = scores.red / total;
-    const bluePct = scores.blue / total;
-
-    if (redPct > bluePct) winner = "red";
-    if (bluePct > redPct) winner = "blue";
-
-    endMatch(winner);
 }
 
 // =====================
@@ -134,7 +97,12 @@ function endMatch(winner) {
 function resetMatch() {
 
     territories = [];
-    scores = { red: 0, blue: 0 };
+
+    scores = {
+        red: 0,
+        blue: 0
+    };
+
     matchActive = true;
     timeLeft = 300;
 
@@ -146,26 +114,84 @@ function resetMatch() {
     startTimer();
 }
 
+function endMatchByTime() {
+
+    const total = scores.red + scores.blue;
+
+    if (total === 0) {
+        endMatch("tie");
+        return;
+    }
+
+    const redPct = scores.red / total;
+    const bluePct = scores.blue / total;
+
+    let winner = "tie";
+
+    if (redPct > bluePct) winner = "red";
+    if (bluePct > redPct) winner = "blue";
+
+    endMatch(winner);
+}
+
+// =====================
+// TIMER
+// =====================
+function startTimer() {
+
+    if (timerInterval) return;
+
+    timerInterval = setInterval(() => {
+
+        if (!matchActive) return;
+
+        timeLeft--;
+
+        io.emit("timerUpdate", timeLeft);
+
+        if (timeLeft <= 0) {
+
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            endMatchByTime();
+        }
+
+    }, 1000);
+}
+
 // =====================
 // INIT
 // =====================
 loadTerritories();
+updateScores();
 startTimer();
 
 // =====================
-// SOCKET
+// SOCKET.IO
 // =====================
 io.on("connection", (socket) => {
+
+    console.log("Player connected");
 
     socket.emit("loadTerritories", territories);
     socket.emit("scoreUpdate", scores);
     socket.emit("timerUpdate", timeLeft);
 
-    socket.on("claim", (data) => {
+    socket.on("claimLocation", (data) => {
 
         if (!matchActive) return;
 
-        // assign team
+        if (
+            !data ||
+            typeof data.lat !== "number" ||
+            typeof data.lng !== "number" ||
+            !data.owner
+        ) {
+            return;
+        }
+
+        // Assign team if new player
         if (!playerTeams[data.owner]) {
             playerTeams[data.owner] =
                 Math.random() < 0.5 ? "red" : "blue";
@@ -175,21 +201,20 @@ io.on("connection", (socket) => {
 
         const captureRadius = 0.01;
 
-        // capture check
-        for (let t of territories) {
+        // Capture existing nearby territory
+        for (const territory of territories) {
 
-            const dist =
-                Math.sqrt(
-                    Math.pow(t.lat - data.lat, 2) +
-                    Math.pow(t.lng - data.lng, 2)
-                );
+            const distance = Math.sqrt(
+                Math.pow(territory.lat - data.lat, 2) +
+                Math.pow(territory.lng - data.lng, 2)
+            );
 
-            if (dist < captureRadius) {
+            if (distance < captureRadius) {
 
-                t.owner = data.owner;
-                t.team = team;
+                territory.owner = data.owner;
+                territory.team = team;
 
-                io.emit("newTerritory", t);
+                io.emit("newTerritory", territory);
 
                 saveTerritories();
                 updateScores();
@@ -198,7 +223,7 @@ io.on("connection", (socket) => {
             }
         }
 
-        // new territory
+        // Create new territory
         const newTerritory = {
             owner: data.owner,
             team: team,
@@ -214,9 +239,16 @@ io.on("connection", (socket) => {
         saveTerritories();
         updateScores();
     });
+
+    socket.on("disconnect", () => {
+        console.log("Player disconnected");
+    });
 });
 
 // =====================
+// START SERVER
+// =====================
 server.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+    console.log(`Server running on port ${PORT}`);
 });
+```
